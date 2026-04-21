@@ -80,8 +80,41 @@ def _tensor_conv1d(
     s1 = input_strides
     s2 = weight_strides
 
-    # TODO: Implement for Task 4.1.
-    raise NotImplementedError('Need to implement for Task 4.1')
+    for b in range(batch):
+        for oc in range(out_channels):
+            for x in range(out_width):
+                acc = 0.0
+
+                for ic in range(in_channels):
+                    for k in range(kw):
+                        if reverse:
+                            ix = x - k
+                            if ix < 0 or ix >= width:
+                                continue
+                        else:
+                            ix = x + k
+                            if ix < 0 or ix >= width:
+                                continue
+
+                        in_pos = (
+                            b * input_strides[0]
+                            + ic * input_strides[1]
+                            + ix * input_strides[2]
+                        )
+                        w_pos = (
+                            oc * weight_strides[0]
+                            + ic * weight_strides[1]
+                            + k * weight_strides[2]
+                        )
+
+                        acc += input[in_pos] * weight[w_pos]
+
+                out_pos = (
+                    b * out_strides[0]
+                    + oc * out_strides[1]
+                    + x * out_strides[2]
+                )
+                out[out_pos] = acc
 
 
 tensor_conv1d = njit(parallel=True)(_tensor_conv1d)
@@ -190,9 +223,20 @@ def _tensor_conv2d(
         weight_strides (Strides): strides for `input` tensor.
         reverse (bool): anchor weight at top-left or bottom-right
     """
-    batch_, out_channels, _, _ = out_shape
-    batch, in_channels, height, width = input_shape
-    out_channels_, in_channels_, kh, kw = weight_shape
+    batch_ = out_shape[0]
+    out_channels = out_shape[1]
+    out_height = out_shape[2]
+    out_width = out_shape[3]
+
+    batch = input_shape[0]
+    in_channels = input_shape[1]
+    height = input_shape[2]
+    width = input_shape[3]
+
+    out_channels_ = weight_shape[0]
+    in_channels_ = weight_shape[1]
+    kh = weight_shape[2]
+    kw = weight_shape[3]
 
     assert (
         batch == batch_
@@ -202,12 +246,40 @@ def _tensor_conv2d(
 
     s1 = input_strides
     s2 = weight_strides
-    # inners
-    s10, s11, s12, s13 = s1[0], s1[1], s1[2], s1[3]
-    s20, s21, s22, s23 = s2[0], s2[1], s2[2], s2[3]
+    s0 = out_strides
 
-    # TODO: Implement for Task 4.2.
-    raise NotImplementedError('Need to implement for Task 4.2')
+    # input strides
+    s10, s11, s12, s13 = s1[0], s1[1], s1[2], s1[3]
+    # weight strides
+    s20, s21, s22, s23 = s2[0], s2[1], s2[2], s2[3]
+    # output strides
+    s00, s01, s02, s03 = s0[0], s0[1], s0[2], s0[3]
+
+    for b in range(batch):
+        for oc in range(out_channels):
+            for y in range(out_height):
+                for x in range(out_width):
+                    acc = 0.0
+
+                    for ic in range(in_channels):
+                        for ky in range(kh):
+                            for kx in range(kw):
+                                if reverse:
+                                    iy = y - ky
+                                    ix = x - kx
+                                else:
+                                    iy = y + ky
+                                    ix = x + kx
+
+                                if iy < 0 or iy >= height or ix < 0 or ix >= width:
+                                    continue
+
+                                in_pos = b * s10 + ic * s11 + iy * s12 + ix * s13
+                                w_pos = oc * s20 + ic * s21 + ky * s22 + kx * s23
+                                acc += input[in_pos] * weight[w_pos]
+
+                    out_pos = b * s00 + oc * s01 + y * s02 + x * s03
+                    out[out_pos] = acc
 
 
 tensor_conv2d = njit(parallel=True, fastmath=True)(_tensor_conv2d)

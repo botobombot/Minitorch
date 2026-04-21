@@ -22,7 +22,13 @@ def central_difference(f: Any, *vals: Any, arg: int = 0, epsilon: float = 1e-6) 
     Returns:
         An approximation of $f'_i(x_0, \ldots, x_{n-1})$
     """
-    # TODO: Implement for Task 1.1.
+    vals1 = list(vals)
+    vals2 = list(vals)
+
+    vals1[arg] = vals1[arg] + epsilon
+    vals2[arg] = vals2[arg] - epsilon
+
+    return (f(*vals1) - f(*vals2)) / (2 * epsilon)
     raise NotImplementedError('Need to implement for Task 1.1')
 
 
@@ -52,32 +58,40 @@ class Variable(Protocol):
 
 
 def topological_sort(variable: Variable) -> Iterable[Variable]:
-    """
-    Computes the topological order of the computation graph.
+    visited = set()
+    order = []
 
-    Args:
-        variable: The right-most variable
+    def visit(var: Variable) -> None:
+        if var.unique_id in visited or var.is_constant():
+            return
 
-    Returns:
-        Non-constant Variables in topological order starting from the right.
-    """
-    # TODO: Implement for Task 1.4.
-    raise NotImplementedError('Need to implement for Task 1.4')
+        visited.add(var.unique_id)
+
+        for parent in var.parents:
+            visit(parent)
+
+        order.append(var)
+
+    visit(variable)
+    order.reverse()
+    return order
 
 
 def backpropagate(variable: Variable, deriv: Any) -> None:
-    """
-    Runs backpropagation on the computation graph in order to
-    compute derivatives for the leave nodes.
+    ordered = topological_sort(variable)
+    derivatives = {variable.unique_id: deriv}
 
-    Args:
-        variable: The right-most variable
-        deriv  : Its derivative that we want to propagate backward to the leaves.
+    for var in ordered:
+        d = derivatives.get(var.unique_id, 0.0)
 
-    No return. Should write to its results to the derivative values of each leaf through `accumulate_derivative`.
-    """
-    # TODO: Implement for Task 1.4.
-    raise NotImplementedError('Need to implement for Task 1.4')
+        if var.is_leaf():
+            var.accumulate_derivative(d)
+        else:
+            for parent, parent_deriv in var.chain_rule(d):
+                if parent.unique_id in derivatives:
+                    derivatives[parent.unique_id] += parent_deriv
+                else:
+                    derivatives[parent.unique_id] = parent_deriv
 
 
 @dataclass
